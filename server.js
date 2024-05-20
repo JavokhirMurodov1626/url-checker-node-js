@@ -117,6 +117,13 @@ app.post("/login", async (req, res) => {
   }
 });
 
+app.all("*", (req, res) => {
+  res.status(404).json({
+    message: "Route not found",
+    code: 404,
+  });
+});
+
 app.listen(8000, () => {
   console.log("Server is running on port 8000");
 });
