@@ -17,10 +17,6 @@ const signUpController = catchAsync(async (req, res, next) => {
       full_name,
       email,
       password: hashedPassword,
-      password_changed_at:
-        typeof password_changed_at === "string"
-          ? new Date(password_changed_at)
-          : password_changed_at,
     },
     select: {
       user_id: true,
@@ -28,7 +24,7 @@ const signUpController = catchAsync(async (req, res, next) => {
       email: true,
     },
   });
-  
+
   const token = jwt.sign(
     { userId: newUser.user_id, email: newUser.email },
     process.env.JWT_SECRET,
@@ -112,13 +108,13 @@ const protect = catchAsync(async (req, res, next) => {
   const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
 
   // 3) check if user still exists
-  const freshUser = await prisma.user.findUnique({
+  const currentUser = await prisma.user.findUnique({
     where: {
       user_id: decoded.userId,
     },
   });
 
-  if (!freshUser) {
+  if (!currentUser) {
     return next(
       new AppError(
         "The user belonging to this token does no longer exist.",
@@ -129,10 +125,11 @@ const protect = catchAsync(async (req, res, next) => {
   // 4) check if user changed password after the token was issued
   let isPasswordChanged;
 
-  if (!freshUser.password_changed_at) {
+  if (!currentUser.password_changed_at) {
     isPasswordChanged = false;
   } else {
-    const changedPasswordDate = freshUser.password_changed_at.getTime() / 1000;
+    const changedPasswordDate =
+      currentUser.password_changed_at.getTime() / 1000;
     isPasswordChanged = changedPasswordDate > decoded.iat;
   }
 
@@ -142,11 +139,24 @@ const protect = catchAsync(async (req, res, next) => {
     );
   }
   // Grant access to protected route
+  req.user = currentUser;
   next();
 });
+
+const allowTo = (...roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return next(
+        new AppError("You do not have permission to perform this action", 403)
+      );
+    }
+    next();
+  };
+};
 
 module.exports = {
   signUpController,
   loginController,
   protect,
+  allowTo,
 };

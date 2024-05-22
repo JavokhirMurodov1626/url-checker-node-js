@@ -1,5 +1,5 @@
 const express = require("express");
-const { protect } = require("../controllers/authController");
+const { protect, allowTo } = require("../controllers/authController");
 
 const router = express.Router();
 
@@ -13,9 +13,9 @@ const {
 router
   .route("/link-sources")
   .get(protect, getAllLinkSources)
-  .post(addLinkSource)
-  .delete(deleteLinkSource)
-  .patch(updateLinkSource);
+  .post(protect, addLinkSource)
+  .delete(protect, allowTo("ADMIN"), deleteLinkSource)
+  .patch(protect, updateLinkSource);
 
 router.route("/link-types");
 module.exports = router;

@@ -37,8 +37,13 @@ const handlePrismaErrors = (err) => {
       400
     );
     return customError;
-  } else if ((err.name = "JsonWebTokenError")) {
+  } else if (err.name === "JsonWebTokenError") {
     return new AppError("Invalid token. Please log in again!", 401);
+  } else if (err.code === "P2025") {
+    return new AppError(
+      "Invalid data provided. Please provide valid data",
+      404
+    );
   }
 };
 
