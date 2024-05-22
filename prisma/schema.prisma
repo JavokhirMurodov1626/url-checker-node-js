@@ -14,12 +14,45 @@ datasource db {
 }
 
 model User {
-  user_id    Int      @id @default(autoincrement())
-  full_name  String
-  email      String   @unique
-  password   String
-  created_at DateTime @default(now())
-  user_photo String? 
+  user_id       Int      @id @default(autoincrement())
+  full_name     String
+  email         String   @unique
+  password      String
+  created_at    DateTime @default(now())
+  user_photo    String?
+  created_links Link[]
 
   @@map("users")
+}
+
+model LinkSource {
+  link_source_id   Int      @id @default(autoincrement())
+  link_source_name String
+  created_at       DateTime @default(now())
+  link_list        Link[]
+
+  @@map("link_sources")
+}
+
+model LinkType {
+  link_type_id   Int      @id @default(autoincrement())
+  link_type_name String
+  created_at     DateTime @default(now())
+  link_list      Link[]
+
+  @@map("link_types")
+}
+
+model Link {
+  link_id        Int        @id @default(autoincrement())
+  url            String
+  description    String?
+  recorded_by    User       @relation(fields: [recorded_by_id], references: [user_id])
+  recorded_by_id Int
+  link_source    LinkSource @relation(fields: [link_source_id], references: [link_source_id])
+  link_source_id Int
+  link_type      LinkType   @relation(fields: [link_type_id], references: [link_type_id])
+  link_type_id   Int
+
+  @@map("links")
 }
