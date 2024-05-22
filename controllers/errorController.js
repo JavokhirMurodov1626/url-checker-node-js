@@ -31,13 +31,14 @@ const sendErrorProd = (err, res) => {
 };
 
 const handlePrismaErrors = (err) => {
-  console.log(err);
   if (err.code === "P2002") {
     let customError = new AppError(
       `${err.meta.target[0]} already exists. Please use another ${err.meta.target[0]}`,
       400
     );
     return customError;
+  } else if ((err.name = "JsonWebTokenError")) {
+    return new AppError("Invalid token. Please log in again!", 401);
   }
 };
 

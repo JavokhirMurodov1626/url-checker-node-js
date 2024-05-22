@@ -11,6 +11,7 @@ app.use(express.json());
 
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1", linkRoutes);
+
 app.all("*", (req, res, next) => {
   next(new AppError(`${req.originalUrl} not found!`, 404));
 });

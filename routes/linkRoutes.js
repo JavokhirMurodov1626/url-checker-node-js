@@ -1,5 +1,8 @@
 const express = require("express");
+const { protect } = require("../controllers/authController");
+
 const router = express.Router();
+
 const {
   addLinkSource,
   getAllLinkSources,
@@ -9,7 +12,7 @@ const {
 
 router
   .route("/link-sources")
-  .get(getAllLinkSources)
+  .get(protect, getAllLinkSources)
   .post(addLinkSource)
   .delete(deleteLinkSource)
   .patch(updateLinkSource);
