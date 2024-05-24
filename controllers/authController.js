@@ -9,6 +9,12 @@ const AppError = require("../utils/appError");
 
 const prisma = new PrismaClient();
 
+const signToken = (userId, userEmail) => {
+  return jwt.sign({ userId, email: userEmail }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN,
+  });
+};
+
 const signUpController = catchAsync(async (req, res, next) => {
   const { full_name, email, password, password_changed_at } = req.body;
 
@@ -28,13 +34,7 @@ const signUpController = catchAsync(async (req, res, next) => {
     },
   });
 
-  const token = jwt.sign(
-    { userId: newUser.user_id, email: newUser.email },
-    process.env.JWT_SECRET,
-    {
-      expiresIn: process.env.JWT_EXPIRES_IN,
-    }
-  );
+  const token = signToken(newUser.user_id, newUser.email);
 
   res.status(201).json({
     message: "User created successfully!",
@@ -72,11 +72,7 @@ const loginController = catchAsync(async (req, res, next) => {
     return next(new AppError("Incorrect password!", 401));
   }
 
-  const token = jwt.sign(
-    { userId: existingUser.user_id, email: existingUser.email },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN }
-  );
+  const token = signToken(existingUser.user_id, existingUser.email);
 
   res.status(200).json({
     message: "User logged in successfully!",
@@ -197,7 +193,7 @@ const forgotPasswordController = catchAsync(async (req, res, next) => {
 
   const resetURL = `${req.protocol}://${req.get(
     "host"
-  )}/api/v1/users/resetPassword/${tempPasswordResetToken}`;
+  )}/api/v1/users/resetPassword/${resetToken}`;
 
   const message = `Forgot your password? Submit a Patch request with your new password. to: ${resetURL}.\nIf you didn't forget your password, please ignore this email!`;
 
@@ -231,7 +227,51 @@ const forgotPasswordController = catchAsync(async (req, res, next) => {
 });
 
 const resetPasswordController = catchAsync(async (req, res, next) => {
+  //1 Get user based on token
+  const hashedToken = crypto
+    .createHash("sha256")
+    .update(req.params.token)
+    .digest("hex");
+
+  const user = await prisma.user.findFirst({
+    where: {
+      password_reset_token: hashedToken,
+      password_reset_token_expires: {
+        gte: new Date(),
+      },
+    },
+  });
+
+  //2) If token has not expired, and there is user, set the new password
+  if (!user) {
+    return next(new AppError("Token is invalid or expired!", 400));
+  }
+
+  const { password } = req.body;
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+
+  await prisma.user.updateMany({
+    where: {
+      user_id: user.user_id,
+    },
+
+    data: {
+      password: hashedPassword,
+      password_changed_at: new Date(new Date().getTime() + 60 * 60 * 1000 * 5),
+      password_reset_token: null,
+      password_reset_token_expires: null,
+    },
+  });
+  //3) Update changedPasswordAt property for the user
+  //4) Log the user in, send JWT
+  const token = signToken(user.user_id, user.email);
   
+  res.status(200).json({
+    status: "success",
+    message: "Password reset successful!",
+    token,
+  });
 });
 
 const getAllUsers = catchAsync(async (req, res, next) => {
