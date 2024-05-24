@@ -1,8 +1,10 @@
+const crypto = require("crypto");
 const { promisify } = require("util");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { PrismaClient } = require("@prisma/client");
 const catchAsync = require("../utils/catchAsync");
+const sendEmail = require("../utils/email");
 const AppError = require("../utils/appError");
 
 const prisma = new PrismaClient();
@@ -17,6 +19,7 @@ const signUpController = catchAsync(async (req, res, next) => {
       full_name,
       email,
       password: hashedPassword,
+      created_at: new Date(new Date().getTime() + 60 * 60 * 1000 * 5),
     },
     select: {
       user_id: true,
@@ -154,9 +157,109 @@ const allowTo = (...roles) => {
   };
 };
 
+const forgotPasswordController = catchAsync(async (req, res, next) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return next(new AppError("Email is required!", 400));
+  }
+
+  const currentUser = prisma.user.findUnique({
+    where: {
+      email,
+    },
+  });
+
+  if (!currentUser) {
+    return next(new AppError(`Email- ${email} does not exist!`, 404));
+  }
+
+  const resetToken = crypto.randomBytes(32).toString("hex");
+
+  const tempPasswordResetToken = crypto
+    .createHash("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  const currentDate = new Date(new Date().getTime() + 60 * 60 * 1000 * 5);
+
+  await prisma.user.updateMany({
+    where: {
+      email,
+    },
+    data: {
+      password_reset_token: tempPasswordResetToken,
+      password_reset_token_expires: new Date(
+        currentDate.getTime() + 10 * 60 * 1000
+      ), // 10 minutes
+    },
+  });
+
+  const resetURL = `${req.protocol}://${req.get(
+    "host"
+  )}/api/v1/users/resetPassword/${tempPasswordResetToken}`;
+
+  const message = `Forgot your password? Submit a Patch request with your new password. to: ${resetURL}.\nIf you didn't forget your password, please ignore this email!`;
+
+  try {
+    await sendEmail({
+      email,
+      subject: "Your password reset token (valid for 10 minutes)",
+      message,
+    });
+  } catch (err) {
+    await prisma.user.updateMany({
+      where: {
+        email,
+      },
+      data: {
+        password_reset_token: null,
+        password_reset_token_expires: null,
+      },
+    });
+
+    return next(
+      new AppError("There was an error sending the email. Try again later!"),
+      500
+    );
+  }
+
+  res.status(200).json({
+    message: "Token sent to email!",
+    code: 200,
+  });
+});
+
+const resetPasswordController = catchAsync(async (req, res, next) => {
+  
+});
+
+const getAllUsers = catchAsync(async (req, res, next) => {
+  const users = await prisma.user.findMany({
+    select: {
+      user_id: true,
+      full_name: true,
+      email: true,
+      created_at: true,
+      password_reset_token_expires: true,
+    },
+  });
+
+  res.status(200).json({
+    message: "Users fetched successfully!",
+    code: 200,
+    data: {
+      users,
+    },
+  });
+});
+
 module.exports = {
   signUpController,
   loginController,
+  forgotPasswordController,
+  resetPasswordController,
+  getAllUsers,
   protect,
   allowTo,
 };

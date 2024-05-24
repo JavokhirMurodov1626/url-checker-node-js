@@ -22,11 +22,13 @@ model User {
   user_id             Int       @id @default(autoincrement())
   full_name           String
   email               String    @unique
-  password            String
-  created_at          DateTime  @default(now())
+  created_at          DateTime 
   user_photo          String?
   created_links       Link[]
+  password            String
   password_changed_at DateTime?
+  password_reset_token String?
+  password_reset_token_expires DateTime?
   role                Role      @default(USER)
 
   @@map("users")
