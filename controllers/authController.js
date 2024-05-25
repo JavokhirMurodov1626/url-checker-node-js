@@ -16,7 +16,7 @@ const signToken = (userId, userEmail) => {
 };
 
 const signUpController = catchAsync(async (req, res, next) => {
-  const { full_name, email, password, password_changed_at } = req.body;
+  const { full_name, email, password } = req.body;
 
   const hashedPassword = await bcrypt.hash(password, 12);
 
@@ -25,7 +25,6 @@ const signUpController = catchAsync(async (req, res, next) => {
       full_name,
       email,
       password: hashedPassword,
-      created_at: new Date(new Date().getTime() + 60 * 60 * 1000 * 5),
     },
     select: {
       user_id: true,
@@ -127,9 +126,11 @@ const protect = catchAsync(async (req, res, next) => {
   if (!currentUser.password_changed_at) {
     isPasswordChanged = false;
   } else {
-    const changedPasswordDate =
-      currentUser.password_changed_at.getTime() / 1000;
-    isPasswordChanged = changedPasswordDate > decoded.iat;
+    const changedPasswordDate = currentUser.password_changed_at;
+    const tokenIssuedAt =new Date( decoded.iat * 1000);
+    console.log(changedPasswordDate)
+    console.log(tokenIssuedAt)
+    isPasswordChanged = changedPasswordDate > tokenIssuedAt;
   }
 
   if (isPasswordChanged) {
@@ -177,8 +178,6 @@ const forgotPasswordController = catchAsync(async (req, res, next) => {
     .update(resetToken)
     .digest("hex");
 
-  const currentDate = new Date(new Date().getTime() + 60 * 60 * 1000 * 5);
-
   await prisma.user.updateMany({
     where: {
       email,
@@ -186,7 +185,7 @@ const forgotPasswordController = catchAsync(async (req, res, next) => {
     data: {
       password_reset_token: tempPasswordResetToken,
       password_reset_token_expires: new Date(
-        currentDate.getTime() + 10 * 60 * 1000
+        new Date().getTime() + 10 * 60 * 1000
       ), // 10 minutes
     },
   });
@@ -258,7 +257,7 @@ const resetPasswordController = catchAsync(async (req, res, next) => {
 
     data: {
       password: hashedPassword,
-      password_changed_at: new Date(new Date().getTime() + 60 * 60 * 1000 * 5),
+      password_changed_at: new Date(new Date() - 1000),
       password_reset_token: null,
       password_reset_token_expires: null,
     },
@@ -266,7 +265,7 @@ const resetPasswordController = catchAsync(async (req, res, next) => {
   //3) Update changedPasswordAt property for the user
   //4) Log the user in, send JWT
   const token = signToken(user.user_id, user.email);
-  
+
   res.status(200).json({
     status: "success",
     message: "Password reset successful!",
