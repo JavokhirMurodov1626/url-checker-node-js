@@ -127,9 +127,9 @@ const protect = catchAsync(async (req, res, next) => {
     isPasswordChanged = false;
   } else {
     const changedPasswordDate = currentUser.password_changed_at;
-    const tokenIssuedAt =new Date( decoded.iat * 1000);
-    console.log(changedPasswordDate)
-    console.log(tokenIssuedAt)
+    const tokenIssuedAt = new Date(decoded.iat * 1000);
+    console.log(changedPasswordDate);
+    console.log(tokenIssuedAt);
     isPasswordChanged = changedPasswordDate > tokenIssuedAt;
   }
 
@@ -273,23 +273,56 @@ const resetPasswordController = catchAsync(async (req, res, next) => {
   });
 });
 
-const getAllUsers = catchAsync(async (req, res, next) => {
-  const users = await prisma.user.findMany({
-    select: {
-      user_id: true,
-      full_name: true,
-      email: true,
-      created_at: true,
-      password_reset_token_expires: true,
+const updatePasswordController = catchAsync(async (req, res, next) => {
+  // 1) get the user
+  const user = await prisma.user.findUnique({
+    where: {
+      user_id: req.user.user_id,
     },
   });
 
-  res.status(200).json({
-    message: "Users fetched successfully!",
-    code: 200,
-    data: {
-      users,
+  //2) check password
+  const { current_password, new_password, confirmed_password } = req.body;
+
+  const isPasswordCorrect = await bcrypt.compare(
+    current_password,
+    user.password
+  );
+
+  if (!isPasswordCorrect) return next(new AppError("Incorrect password!", 401));
+
+  //3) update password
+  if (current_password === new_password)
+    return next(
+      new AppError(
+        "New password cannot be the same as the current password!",
+        400
+      )
+    );
+
+  if (new_password !== confirmed_password)
+    return next(new AppError("Passwords do not match!", 400));
+
+  const hashedPassword = await bcrypt.hash(new_password, 12);
+
+  await prisma.user.updateMany({
+    where: {
+      user_id: req.user.user_id,
     },
+    data: {
+      password: hashedPassword,
+      password_changed_at: new Date(new Date() - 1000),
+    },
+  });
+
+  //4) log user in, send JWT
+
+  const token = signToken(user.user_id, user.email);
+
+  res.status(200).json({
+    status: "success",
+    message: "Password updated successfully!",
+    token,
   });
 });
 
@@ -298,7 +331,7 @@ module.exports = {
   loginController,
   forgotPasswordController,
   resetPasswordController,
-  getAllUsers,
+  updatePasswordController,
   protect,
   allowTo,
 };
