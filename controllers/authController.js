@@ -128,8 +128,6 @@ const protect = catchAsync(async (req, res, next) => {
   } else {
     const changedPasswordDate = currentUser.password_changed_at;
     const tokenIssuedAt = new Date(decoded.iat * 1000);
-    console.log(changedPasswordDate);
-    console.log(tokenIssuedAt);
     isPasswordChanged = changedPasswordDate > tokenIssuedAt;
   }
 
