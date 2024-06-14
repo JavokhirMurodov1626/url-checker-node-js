@@ -127,9 +127,9 @@ const protect = catchAsync(async (req, res, next) => {
     isPasswordChanged = false;
   } else {
     const changedPasswordDate = currentUser.password_changed_at;
-    const tokenIssuedAt =new Date( decoded.iat * 1000);
-    console.log(changedPasswordDate)
-    console.log(tokenIssuedAt)
+    const tokenIssuedAt = new Date(decoded.iat * 1000);
+    console.log(changedPasswordDate);
+    console.log(tokenIssuedAt);
     isPasswordChanged = changedPasswordDate > tokenIssuedAt;
   }
 
@@ -293,11 +293,92 @@ const getAllUsers = catchAsync(async (req, res, next) => {
   });
 });
 
+const updatePassword = catchAsync(async (req, res, next) => {
+  // 1) Get user from collection
+  const user = await prisma.user.findUnique({
+    where: {
+      user_id: req.user.user_id,
+    },
+  });
+
+  // 2) Check if POSTed current password is correct
+  const { current_password, new_password } = req.body;
+
+  if (!current_password || !new_password) {
+    return next(new AppError("Please provide current and new password!", 400));
+  }
+
+  const isPasswordCorrect = await bcrypt.compare(
+    current_password,
+    user.password
+  );
+
+  if (!isPasswordCorrect) {
+    return next(new AppError("Your current password is wrong.", 401));
+  }
+
+  // 3) If so, update password
+  const hashedPassword = await bcrypt.hash(new_password, 12);
+
+  await prisma.user.updateMany({
+    where: {
+      user_id: req.user.user_id,
+    },
+    data: {
+      password: hashedPassword,
+      password_changed_at: new Date(new Date() - 1000),
+    },
+  });
+
+  // 4) Log user in, send JWT
+  const token = signToken(user.user_id, user.email);
+
+  res.status(200).json({
+    status: "success",
+    message: "Password updated successfully!",
+    token,
+  });
+});
+
+const updateMe = catchAsync(async (req, res, next) => {
+  const updatingFields = ["email", "full_name"];
+  for (let key in req.body) {
+    if (!updatingFields.includes(key)) {
+      return next(new AppError(`This route is not for updating ${key}`, 400));
+    }
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: {
+      user_id: req.user.user_id,
+    },
+    data: {
+      email: req.body.email,
+      full_name: req.body.full_name,
+    },
+    select: {
+      user_id: true,
+      full_name: true,
+      email: true,
+    },
+  });
+
+  res.status(200).json({
+    status: "success",
+    message: "User updated successfully!",
+    data: {
+      user: updatedUser,
+    },
+  });
+});
+
 module.exports = {
   signUpController,
   loginController,
   forgotPasswordController,
   resetPasswordController,
+  updatePassword,
+  updateMe,
   getAllUsers,
   protect,
   allowTo,
