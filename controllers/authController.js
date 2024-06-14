@@ -15,6 +15,30 @@ const signToken = (userId, userEmail) => {
   });
 };
 
+const createSendToken = (user, statusCode, res, msg) => {
+  const token = signToken(user.user_id, user.email);
+
+  const cookiesOptions = {
+    expires: new Date(
+      Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
+    ),
+    httpOnly: true,
+  };
+
+  if (process.env.NODE_ENV === "production") cookiesOptions.secure = true;
+
+  res.cookie("jwt", token, cookiesOptions);
+
+  res.status(statusCode).json({
+    status: "success",
+    message: msg,
+    token,
+    data: {
+      user,
+    },
+  });
+};
+
 const signUpController = catchAsync(async (req, res, next) => {
   const { full_name, email, password } = req.body;
 
@@ -35,14 +59,7 @@ const signUpController = catchAsync(async (req, res, next) => {
 
   const token = signToken(newUser.user_id, newUser.email);
 
-  res.status(201).json({
-    message: "User created successfully!",
-    token,
-    code: 201,
-    data: {
-      user: newUser,
-    },
-  });
+  createSendToken(newUser, 201, res, "User created successfully!");
 });
 
 const loginController = catchAsync(async (req, res, next) => {
@@ -370,6 +387,22 @@ const updateMe = catchAsync(async (req, res, next) => {
   });
 });
 
+const deleteMe = catchAsync(async (req, res, next) => {
+  await prisma.user.update({
+    where: {
+      user_id: req.user.user_id,
+    },
+    data: {
+      active: false,
+    },
+  });
+
+  res.status(204).json({
+    status: "success",
+    message: "User deleted successfully!",
+  });
+});
+
 module.exports = {
   signUpController,
   loginController,
@@ -377,7 +410,28 @@ module.exports = {
   resetPasswordController,
   updatePassword,
   updateMe,
+  deleteMe,
   getAllUsers,
   protect,
   allowTo,
 };
+
+//Compromised database
+// 1. Strongly encrypted passwords with salt and hash (bcrypt)
+// 2. Strongly encrypt password reset tokens (SHA 256)
+
+// Brute force attack
+// 1. Limit the number of requests to the server (express-rate-limit)
+// 2. Use bcrypt to make login reqeusets slow
+// 3. Implement maximum login attempts (express-mongo-sanitize)
+
+// Cross-site scripting (XSS)
+// 1. Use HTTP only cookies
+// 2. Sanitize user input data (express-mongo-sanitize)
+// 3. Use secure headers (helmet)
+
+// Denial of service (DoS) attack
+// 1. Limit the number of requests to the server (express-rate-limit)
+// 2. Limit the size of the request body (express.json)
+// 3. Use a reverse proxy (NGINX)
+// 4. Avoid evil regular expressions (express-mongo-sanitize)
