@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const multer = require("multer");
 const { promisify } = require("util");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -8,6 +9,37 @@ const sendEmail = require("../utils/email");
 const AppError = require("../utils/appError");
 
 const prisma = new PrismaClient();
+
+const multerStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "public/img/users");
+  },
+  filename: (req, file, cb) => {
+    const ext = file.mimetype.split("/")[1];
+    cb(null, `user-${req.user.user_id}-${Date.now()}.${ext}`);
+  },
+});
+
+const multerFilter = (req, file, cb) => {
+  const fileTypes = /png|jpeg|jpg|png/;
+  const mimetype = fileTypes.test(file.mimetype.split("/")[1]);
+
+  if (mimetype) {
+    cb(null, true);
+  } else {
+    cb(
+      new AppError(
+        `Error: File upload only supports the following filetypes - ${fileTypes}`
+      ),
+      false
+    );
+  }
+};
+
+const upload = multer({
+  storage: multerStorage,
+  fileFilter: multerFilter,
+});
 
 const signToken = (userId, userEmail) => {
   return jwt.sign({ userId, email: userEmail }, process.env.JWT_SECRET, {
@@ -355,6 +387,8 @@ const updatePassword = catchAsync(async (req, res, next) => {
   });
 });
 
+const uploadUserPhoto = upload.single("user_photo");
+
 const updateMe = catchAsync(async (req, res, next) => {
   const updatingFields = ["email", "full_name"];
   for (let key in req.body) {
@@ -409,6 +443,7 @@ module.exports = {
   forgotPasswordController,
   resetPasswordController,
   updatePassword,
+  uploadUserPhoto,
   updateMe,
   deleteMe,
   getAllUsers,

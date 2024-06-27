@@ -9,6 +9,7 @@ const {
   deleteMe,
   protect,
   getAllUsers,
+  uploadUserPhoto,
 } = require("../controllers/authController");
 
 const router = express.Router();
@@ -17,8 +18,9 @@ router.route("/signup").post(signUpController);
 router.route("/login").post(loginController);
 router.route("/forgot-password").post(forgotPasswordController);
 router.route("/reset-password/:token").patch(resetPasswordController);
-router.route("/update-password").patch(protect, updatePassword);
-router.route("/update-me").patch(protect, updateMe);
-router.route("/delete-me").delete(protect, deleteMe);
+router.use(protect);
+router.route("/update-password").patch(updatePassword);
+router.route("/update-me").patch(uploadUserPhoto, updateMe);
+router.route("/delete-me").delete(deleteMe);
 router.route("/").get(getAllUsers);
 module.exports = router;
